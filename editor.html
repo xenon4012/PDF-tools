@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Combine and Edit PDF Files</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #drop-area {
+      width: 100%;
+      height: 200px;
+      border: 2px dashed #007bff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #007bff;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    #drop-area.dragover {
+      background-color: #e9f3ff;
+    }
+
+    #file-list {
+      margin-top: 20px;
+      list-style-type: none;
+      padding: 0;
+    }
+
+    #page-list {
+      margin-top: 20px;
+      list-style-type: none;
+      padding: 0;
+    }
+
+    #page-list li {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      background-color: #fff;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .page-actions button {
+      margin-left: 10px;
+    }
+
+    .page-item {
+      margin-right: 10px;
+    }
+
+    .button-container {
+      margin: 20px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 15px 30px;
+      font-size: 18px;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      border-radius: 4px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.3s;
+    }
+
+    .button:hover {
+      background-color: #0056b3;
+      transform: scale(1.05);
+    }
+
+    .button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    canvas {
+      margin-right: 10px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Combine, Edit, and Reorder PDF Pages</h1>
+  
+  <div id="drop-area">
+    Drag & Drop PDF files here
+  </div>
+  <ul id="file-list"></ul>
+  <div class="button-container">
+    <button class="button" id="combine-btn">Combine PDFs</button>
+  </div>
+
+  <h2>PDF Pages</h2>
+  <ul id="page-list"></ul>
+  <div class="button-container">
+    <button class="button" id="delete-selected-btn" style="display: none;">Delete Selected Pages</button>
+    <button class="button" id="inverse-selection-btn" style="display: none;">Inverse Selection</button>
+    <button class="button" id="save-pdf-btn" style="display: none;">Save Edited PDF</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+
+  <script>
+    const dropArea = document.getElementById("drop-area");
+    const fileList = document.getElementById("file-list");
+    const combineBtn = document.getElementById("combine-btn");
+    const pageList = document.getElementById("page-list");
+    const savePdfBtn = document.getElementById("save-pdf-btn");
+    const deleteSelectedBtn = document.getElementById("delete-selected-btn");
+    const inverseSelectionBtn = document.getElementById("inverse-selection-btn");
+    
+    let selectedFiles = [];
+    let combinedPdfDoc = null;
+    let pages = [];
+
+    dropArea.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropArea.classList.add("dragover");
+    });
+
+    dropArea.addEventListener("dragleave", () => {
+      dropArea.classList.remove("dragover");
+    });
+
+    dropArea.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropArea.classList.remove("dragover");
+
+      const files = Array.from(event.dataTransfer.files);
+      files.forEach(file => {
+        if (file.type === "application/pdf") {
+          selectedFiles.push(file);
+          const listItem = document.createElement("li");
+          listItem.textContent = file.name;
+          fileList.appendChild(listItem);
+        } else {
+          alert("Only PDF files are allowed.");
+        }
+      });
+    });
+
+    combineBtn.addEventListener("click", async () => {
+      if (selectedFiles.length === 0) {
+        alert("Please add at least one PDF file.");
+        return;
+      }
+
+      combinedPdfDoc = await PDFLib.PDFDocument.create();
+      pages = []; // Reset the pages array
+
+      for (const file of selectedFiles) {
+        const pdfBytes = await file.arrayBuffer();
+        const existingPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+        const copiedPages = await combinedPdfDoc.copyPages(existingPdfDoc, existingPdfDoc.getPageIndices());
+        
+        copiedPages.forEach((page, index) => {
+          pages.push({ page, fileName: file.name, pageIndex: index });
+          combinedPdfDoc.addPage(page);
+        });
+      }
+
+      updatePageList();
+      savePdfBtn.style.display = 'inline-block'; // Show the save button
+      deleteSelectedBtn.style.display = 'inline-block'; // Show the delete button
+      inverseSelectionBtn.style.display = 'inline-block'; // Show the inverse selection button
+    });
+
+    function updatePageList() {
+      pageList.innerHTML = ''; // Clear current page list
+      pages.forEach((pageInfo, index) => {
+        const listItem = document.createElement("li");
+        listItem.classList.add("page-item");
+
+        // Create a canvas to render the page thumbnail
+        const canvas = document.createElement("canvas");
+        canvas.width = 150;
+        canvas.height = 150;
+        const ctx = canvas.getContext("2d");
+
+        // Render page thumbnail on canvas using pdf.js
+        renderPageThumbnail(pageInfo.page, canvas, ctx, index);
+
+        listItem.innerHTML = `
+          <input type="checkbox" id="page-checkbox-${index}" class="page-checkbox">
+          <div class="page-thumbnail">
+            <canvas id="page-${index}"></canvas>
+          </div>
+          Page ${index + 1} (from ${pageInfo.fileName})
+          <div class="page-actions">
+            <button class="button" onclick="movePageUp(${index})">Move Up</button>
+            <button class="button" onclick="movePageDown(${index})">Move Down</button>
+          </div>
+        `;
+        listItem.querySelector("canvas").replaceWith(canvas); // Replace placeholder canvas with the rendered one
+        pageList.appendChild(listItem);
+      });
+    }
+
+    async function renderPageThumbnail(page, canvas, ctx, index) {
+      const pdfBytes = await combinedPdfDoc.save();  // Get the combined PDF as bytes
+      const pdfDoc = await pdfjsLib.getDocument(pdfBytes).promise;  // Load the PDF using pdf.js
+      const pdfPage = await pdfDoc.getPage(index + 1); // Get the page from pdf.js (1-based index)
+
+      const viewport = pdfPage.getViewport({ scale: 0.2 }); // Set the scale for the thumbnail
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
+      pdfPage.render(renderContext); // Render the page to the canvas
+    }
+
+    function movePageUp(index) {
+      if (index > 0) {
+        const page = pages.splice(index, 1)[0]; // Remove page
+        pages.splice(index - 1, 0, page); // Insert before the previous one
+        combinedPdfDoc.removePage(index); // Remove from doc
+        combinedPdfDoc.insertPage(index - 1, page.page); // Insert in new position
+        updatePageList();
+      }
+    }
+
+    function movePageDown(index) {
+      if (index < pages.length - 1) {
+        const page = pages.splice(index, 1)[0]; // Remove page
+        pages.splice(index + 1, 0, page); // Insert after the next one
+        combinedPdfDoc.removePage(index); // Remove from doc
+        combinedPdfDoc.insertPage(index + 1, page.page); // Insert in new position
+        updatePageList();
+      }
+    }
+
+    // Inverse Selection button
+    inverseSelectionBtn.addEventListener("click", () => {
+      const checkboxes = document.querySelectorAll('.page-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = !checkbox.checked; // Toggle the checked state
+      });
+    });
+
+    deleteSelectedBtn.addEventListener("click", () => {
+      // Get the selected pages
+      const selectedIndexes = [];
+      document.querySelectorAll('.page-checkbox:checked').forEach((checkbox, idx) => {
+        selectedIndexes.push(parseInt(checkbox.id.split('-').pop()));
+      });
+
+      // Sort the indexes in reverse order to prevent reindexing issues when removing
+      selectedIndexes.sort((a, b) => b - a);
+
+      // Remove selected pages
+      selectedIndexes.forEach(index => {
+        pages.splice(index, 1);
+        combinedPdfDoc.removePage(index);
+      });
+
+      updatePageList(); // Update the page list after deletion
+    });
+
+    savePdfBtn.addEventListener("click", async () => {
+      const pdfBytes = await combinedPdfDoc.save();
+      const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      const link = document.createElement("a");
+      link.href = pdfUrl;
+      link.download = "edited_combined.pdf";
+      link.click();
+    });
+  </script>
+</body>
+</html>
