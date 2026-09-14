@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cash receipt lookup</title>
+  <style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #000000;
+        color: #333;
+        text-align: center;
+        padding: 20px;
+    }
+    h1 {
+        color: #ffffff;
+    }
+    .button-container {
+        margin: 20px;
+    }
+    .button {
+        display: inline-block;
+        padding: 15px 30px;
+        font-size: 18px;
+        color: #fff;
+        background-color: #007bff;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.3s;
+    }
+    .button:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
+    }
+    .input-box {
+        padding: 12px;
+        width: 300px;
+        font-size: 16px;
+        border: 2px solid #007bff;
+        border-radius: 4px;
+        margin-top: 20px;
+        outline: none;
+    }
+    .input-box:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 5px rgba(0, 91, 179, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <h1>enter year for cash receipts
+  </h1>
+  <input
+    type="text"
+    class="input-box"
+    id="yearInput"
+    placeholder="e.g. 2024"
+    onkeydown="if(event.key === 'Enter') openFolder()"
+  />
+
+  <div class="button-container">
+    <button class="button" onclick="openFolder()">Submit</button>
+  </div>
+
+  <script>
+    function openFolder() {
+      const year = document.getElementById('yearInput').value.trim();
+      if (!year.match(/^\d{4}$/)) {
+        alert("Please enter a valid 4-digit year.");
+        return;
+      }
+
+      const encodedYear = encodeURIComponent(year);
+      const url = `file://server/Data/100%20Corporate%20Services/140%20Finances/${encodedYear}%20Info/${encodedYear}%20Cash%20Receipts/`;
+
+      // Open in the same window/tab
+      window.location.href = url;
+    }
+  </script>
+</body>
+</html>
